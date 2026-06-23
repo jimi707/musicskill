@@ -2,7 +2,10 @@
 """网易云歌单轮换：选歌→删旧→添新→验证→推送。确保歌单精确到设定数目。"""
 import json, os, sys, random, base64, urllib.request, urllib.parse, subprocess, time
 from datetime import date
-from Crypto.Cipher import AES
+try:
+    from Crypto.Cipher import AES
+except:
+    from Cryptodome.Cipher import AES
 
 # ====== 配置 ======
 HERE = os.path.dirname(__file__)
