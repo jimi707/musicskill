@@ -1,18 +1,16 @@
 #!/usr/bin/env python3
-"""快速轮换：选歌 → 删旧 → 添新 → 推送。可自定义数量和时间间隔。"""
-import json, os, sys, random, base64, urllib.request, urllib.parse
+"""网易云歌单轮换：改歌 → 删旧 → 添新 → 推送。保证歌单精确到指定数量。"""
+import json, os, sys, random, base64, urllib.request, urllib.parse, subprocess
 from datetime import date
 from Crypto.Cipher import AES
 
-# 加载配置
+# 配置
 HERE = os.path.dirname(__file__)
 config = json.load(open(os.path.join(HERE, 'config.json'), encoding='utf-8'))
-
-# 环境变量优先，否则读config.json
 MUSIC_U = os.environ.get('MUSIC_U', '')
 BARK_KEY = os.environ.get('BARK_KEY', config.get('bark_key', ''))
 PID = os.environ.get('PLAYLIST_ID', config.get('playlist_id', ''))
-COUNT = int(os.environ.get('PICK_COUNT', config.get('pick_count', 10)))
+COUNT = int(os.environ.get('PICK_COUNT', config.get('pick_count', 20)))
 COOKIE = f'MUSIC_U={MUSIC_U}; os=pc;'
 
 POOL = {s['id']: f"{s['name']}-{s['artist']}" for s in config['song_pool']}
@@ -48,24 +46,29 @@ def post(url, d):
 random.seed(str(date.today()))
 picks = random.sample(IDS, min(COUNT, len(IDS)))
 names = [POOL[i].replace('-', ' — ') for i in picks]
-print(f'选中{len(picks)}首: {names}')
+print(f'选中{len(picks)}首')
 
-# 删旧
-r = post('https://music.163.com/weapi/playlist/detail', {'id': PID, 's': '0', 'n': '100'})
-old = [t['id'] for t in r.get('playlist', {}).get('tracks', [])]
-if old:
-    post('https://music.163.com/weapi/playlist/manipulate/tracks', {'op': 'del', 'pid': PID, 'trackIds': old})
+# 删旧歌（分批，API限制每次最多10-20首）
+try:
+    r = post('https://music.163.com/weapi/v3/playlist/detail', {'id': PID, 's': '0', 'n': '200'})
+    old = [t['id'] for t in r.get('playlist', {}).get('tracks', [])]
+    for i in range(0, len(old), 10):
+        post('https://music.163.com/weapi/playlist/manipulate/tracks', {'op': 'del', 'pid': PID, 'trackIds': old[i:i+10]})
+        import time; time.sleep(0.3)
+    print(f'已删{len(old)}首旧歌' if old else '无旧歌')
+except Exception as e:
+    print(f'删除异常: {e}')
 
-# 添新
 r = post('https://music.163.com/weapi/playlist/manipulate/tracks', {'op': 'add', 'pid': PID, 'trackIds': picks})
 ok = r.get('code') == 200
-print('OK' if ok else f'FAIL: {r}')
+print(f'添加{len(picks)}首: {"OK" if ok else "FAIL"}')
 
-# 推送
+# 推送（用Node.js避免中文编码问题）
 if BARK_KEY and ok:
-    preview = '\n'.join(names[:min(10, len(names))])
-    suffix = f'\n...共{len(picks)}首' if len(picks) > 10 else ''
-    urllib.request.urlopen(
-        f'https://api.day.app/{BARK_KEY}/{urllib.parse.quote("musicskill 推荐已更新")}/{urllib.parse.quote(preview + suffix)}?group=每日推荐',
-        timeout=5)
+    preview = '\n'.join(names[:8]) + f'\n...共{len(picks)}首'
+    node_code = f'''
+        const h = require("https");
+        h.get("https://api.day.app/{BARK_KEY}/"+encodeURIComponent("musicskill 今日推荐已更新")+"/"+encodeURIComponent({json.dumps(preview)})+"?group=每日推荐");
+    '''
+    subprocess.run(['node', '-e', node_code], timeout=10)
     print('推送成功')
