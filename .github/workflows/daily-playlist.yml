@@ -2,7 +2,7 @@ name: 歌单轮换
 
 on:
   schedule:
-    - cron: '0 9 * * *'
+    - cron: '0 8 * * *'
   workflow_dispatch:
     inputs:
       pick_count:
