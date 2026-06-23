@@ -1,7 +1,8 @@
 {
   "playlist_id": "YOUR_PLAYLIST_ID",
   "bark_key": "",
-  "daily_pick_count": 20,
+  "pick_count": 10,
+  "interval_hours": 24,
   "schedule_time": "09:00",
   "song_pool": [
     {"id": 411314656, "name": "烂泥", "artist": "草东没有派对", "style": "华语独立摇滚"},
