@@ -1,0 +1,32 @@
+name: 每日歌单轮换
+
+on:
+  schedule:
+    - cron: '0 9 * * *'   # 每天早上9点
+  workflow_dispatch:       # 支持手动触发（手机也能点）
+  push:
+    branches: [main]
+    paths:
+      - 'config.json'      # 修改 config.json 时自动重新跑
+
+jobs:
+  rotate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: 安装依赖
+        run: pip install pycryptodomex
+
+      - name: 执行歌单轮换
+        env:
+          MUSIC_U: ${{ secrets.MUSIC_U }}
+          PLAYLIST_ID: ${{ secrets.PLAYLIST_ID }}
+          BARK_KEY: ${{ secrets.BARK_KEY }}
+        run: python rotate.py
