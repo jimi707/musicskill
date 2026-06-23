@@ -13,7 +13,8 @@ config = json.load(open(os.path.join(HERE, 'config.json'), encoding='utf-8'))
 MUSIC_U = os.environ.get('MUSIC_U', '')
 BARK_KEY = os.environ.get('BARK_KEY', config.get('bark_key', ''))
 PID = os.environ.get('PLAYLIST_ID', config.get('playlist_id', ''))
-COUNT = int(os.environ.get('PICK_COUNT', config.get('pick_count', 20)))
+raw = os.environ.get('PICK_COUNT', '')
+COUNT = int(raw) if raw.strip() else int(config.get('pick_count', 20))
 SMART = config.get('smart_recommend', True)
 COOKIE = f'MUSIC_U={MUSIC_U}; os=pc;'
 
