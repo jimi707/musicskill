@@ -1,0 +1,24 @@
+{
+  "name": "musicskill",
+  "version": "1.0.0",
+  "description": "**网易云音乐 · 每日歌单智能轮换器**",
+  "main": "auto_rotate.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jimi707/musicskill.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/jimi707/musicskill/issues"
+  },
+  "homepage": "https://github.com/jimi707/musicskill#readme",
+  "dependencies": {
+    "NeteaseCloudMusicApi": "^4.32.0"
+  }
+}
