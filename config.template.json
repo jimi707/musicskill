@@ -1,8 +1,8 @@
 {
-  "playlist_id": "18085057022",
-  "user_id": 3946361671,
-  "bark_key": "uZmXDxFGJtJAFaiksFRAFN",
-  "serverChan_key": "",
+  "playlist_id": "YOUR_PLAYLIST_ID",
+  "user_id": 0,
+  "bark_key": "YOUR_BARK_KEY",
+  "serverChan_key": "YOUR_SERVERCHAN_SENDKEY",
   "pick_count": 20,
   "interval_hours": 24,
   "schedule_time": "08:00",
