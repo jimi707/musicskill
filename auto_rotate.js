@@ -122,6 +122,7 @@ function loadConfig() {
     playlist_id: String(raw.playlist_id),
     user_id:     raw.user_id,
     bark_key:    raw.bark_key || '',
+    serverChan_key: raw.serverChan_key || '',
     pick_count:  Math.min(Math.max(raw.pick_count || 20, 5), 100),
     schedule:    raw.schedule_time || '08:00',
     smart:       raw.smart_recommend !== false,
@@ -331,27 +332,55 @@ class SongPicker {
 }
 
 // ============================================================================
-// Bark 推送
+// 推送模块（Bark + Server酱）
 // ============================================================================
-async function pushNotification(key, log, songs, stats) {
-  if (!key) { log.warn('Bark Key 未配置，跳过推送'); return; }
-  const title = encodeURIComponent('🎵 今日推荐已更新');
+async function pushAll(cfg, log, songs, stats) {
+  const title = '🎵 今日推荐已更新';
   const preview = songs.slice(0, 10).map(s => `• ${s}`).join('\n');
   const footer = `\n...共${songs.length}首 | 已听过 ${stats.heardInPool}/${stats.poolSize} | 耗时 ${stats.elapsed}s`;
-  const body = encodeURIComponent(preview + footer);
+  const text = preview + footer;
 
-  await new Promise(resolve => {
-    const req = https.get(`https://api.day.app/${key}/${title}/${body}?group=每日推荐&sound=default`, res => {
-      let d = '';
-      res.on('data', c => d += c);
-      res.on('end', () => {
-        if (d.includes('"code":200')) log.ok('Bark 推送成功');
-        else log.warn(`Bark 推送返回: ${d.slice(0,60)}`);
-        resolve();
+  const results = await Promise.all([
+    pushBark(cfg.bark_key, title, text, log),
+    pushServerChan(cfg.serverChan_key, title, text, log),
+  ]);
+  const ok = results.filter(Boolean).length;
+  if (results.length > 0) log.info(`推送完成: ${ok}/${results.length} 成功`);
+}
+
+async function pushBark(key, title, text, log) {
+  if (!key) return false;
+  return new Promise(resolve => {
+    const req = https.get(
+      `https://api.day.app/${encodeURIComponent(key)}/${encodeURIComponent(title)}/${encodeURIComponent(text)}?group=每日推荐&sound=default`,
+      res => { let d = ''; res.on('data', c => d += c); res.on('end', () => { const ok = d.includes('"code":200'); log[ok ? 'ok' : 'warn'](`Bark: ${ok ? '✓' : d.slice(0,60)}`); resolve(ok); }); }
+    );
+    req.on('error', e => { log.warn(`Bark 失败: ${e.message}`); resolve(false); });
+    req.setTimeout(10000, () => { req.destroy(); log.warn('Bark 超时'); resolve(false); });
+  });
+}
+
+async function pushServerChan(key, title, text, log) {
+  if (!key) return false;
+  return new Promise(resolve => {
+    const body = `title=${encodeURIComponent(title)}&desp=${encodeURIComponent(text)}`;
+    const req = https.request(`https://sctapi.ftqq.com/${encodeURIComponent(key)}.send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': Buffer.byteLength(body) },
+    }, res => {
+      let d = ''; res.on('data', c => d += c); res.on('end', () => {
+        try {
+          const j = JSON.parse(d);
+          const ok = j.code === 0 || j.errno === 0;
+          log[ok ? 'ok' : 'warn'](`Server酱: ${ok ? '✓' : j.message || j.errmsg || d.slice(0,60)}`);
+          resolve(ok);
+        } catch { log.warn(`Server酱 响应异常: ${d.slice(0,60)}`); resolve(false); }
       });
     });
-    req.on('error', e => { log.warn(`Bark 推送失败: ${e.message}`); resolve(); });
-    req.setTimeout(10000, () => { req.destroy(); log.warn('Bark 推送超时'); resolve(); });
+    req.on('error', e => { log.warn(`Server酱 失败: ${e.message}`); resolve(false); });
+    req.setTimeout(10000, () => { req.destroy(); log.warn('Server酱 超时'); resolve(false); });
+    req.write(body);
+    req.end();
   });
 }
 
@@ -438,8 +467,7 @@ async function main() {
   if (isDryRun) {
     log.ok('DRY RUN — 未修改任何内容');
     const elapsed = Math.round((Date.now() - startTime) / 1000);
-    await pushNotification(cfg.bark_key, log, songNames, { heardInPool, poolSize: cfg.pool.length, elapsed });
-    log.close();
+    await pushAll(cfg, log, songNames, { heardInPool, poolSize: cfg.pool.length, elapsed });
     process.exit(EXIT.OK);
   }
 
@@ -538,7 +566,7 @@ async function main() {
 
   // 12. 推送
   const elapsed = Math.round((Date.now() - startTime) / 1000);
-  await pushNotification(cfg.bark_key, log, songNames, { heardInPool, poolSize: cfg.pool.length, elapsed });
+  await pushAll(cfg, log, songNames, { heardInPool, poolSize: cfg.pool.length, elapsed });
 
   // 13. 完成
   const status = finalCount >= cfg.pick_count ? '✓ 完全成功' :
